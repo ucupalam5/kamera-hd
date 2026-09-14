@@ -29,16 +29,18 @@ jobs:
 
       - name: Init Capacitor Android
         run: |
-          npx cap add android || true
+          npx cap add android
           npx cap sync android
           MANIFEST=android/app/src/main/AndroidManifest.xml
-          # Hapus permission lama jika ada
-          sed -i '/CAMERA/d; /RECORD_AUDIO/d; /ACCESS_FINE_LOCATION/d; /ACCESS_COARSE_LOCATION/d; /WRITE_EXTERNAL_STORAGE/d; /READ_MEDIA/d' $MANIFEST || true
+          # Hapus semua permission lama
+          sed -i '/CAMERA/d; /RECORD_AUDIO/d; /ACCESS_FINE_LOCATION/d; /ACCESS_COARSE_LOCATION/d; /WRITE_EXTERNAL_STORAGE/d; /READ_MEDIA/d; /MANAGE_EXTERNAL_STORAGE/d; /POST_NOTIFICATIONS/d' $MANIFEST || true
           # Tambah semua izin yang dibutuhkan
-          PERMS='    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />\n    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />'
+          PERMS='    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />\n    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />\n    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />\n    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />\n    <uses-feature android:name="android.hardware.camera.front" android:required="false" />'
           sed -i "/<application/i ${PERMS}" $MANIFEST
-          # Tambah requestLegacyExternalStorage untuk Android 10
+          # Tambah requestLegacyExternalStorage untuk Android 10+
           sed -i 's/<application/<application android:requestLegacyExternalStorage="true"/' $MANIFEST || true
+          # Pastikan hardwareAccelerated true
+          sed -i 's/<application/<application android:hardwareAccelerated="true"/' $MANIFEST || true
           echo "=== ANDROID MANIFEST ==="
           cat $MANIFEST
 
@@ -46,7 +48,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon --console=plain
 
       - uses: actions/upload-artifact@v4
         with:

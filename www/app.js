@@ -13,6 +13,8 @@ let recording = null, recStart = 0, recTick = null;
 let zoomV = 1;
 let imgCap = null, photoMax = null;
 let isNative = false;
+let CapacitorHttp = null;
+let CapacitorPlugins = {};
 
 function toast(m, ms) { ms = ms || 2200; const t = $('toast'); t.textContent = m; t.classList.remove('hidden'); clearTimeout(t._x); t._x = setTimeout(function() { t.classList.add('hidden'); }, ms); }
 function fmtTimemark(d) { d = d || new Date(); return d.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replaceAll(':', '.'); }
@@ -35,6 +37,18 @@ window.addEventListener('load', function() {
 
 async function initCamera() {
   try {
+    // Minta izin native untuk Capacitor APK
+    if (isNative) {
+      try {
+        var perms = Capacitor.Plugins.Permissions;
+        if (perms && perms.requestPermissions) {
+          var result = await perms.requestPermissions({
+            permissions: ['camera', 'microphone', 'location', 'photos']
+          });
+          console.log('Native permissions:', result);
+        }
+      } catch(e) { console.warn('Native perm check:', e.message); }
+    }
     if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) { try { await DeviceMotionEvent.requestPermission(); } catch(e) {} }
     if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) { try { await DeviceOrientationEvent.requestPermission(); } catch(e) {} }
     if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
@@ -282,15 +296,30 @@ async function saveToGallery(blob, filename) {
     try {
       var Filesystem = Capacitor.Plugins.Filesystem;
       var Directory = Capacitor.Plugins.Directory;
+      // Convert blob to base64
       var base64 = await new Promise(function(res, rej) {
         var reader = new FileReader();
         reader.onload = function() { res(reader.result); };
         reader.onerror = rej;
         reader.readAsDataURL(blob);
       });
-      await Filesystem.writeFile({ path: 'KameraHD/' + filename, data: base64, directory: Directory.Pictures });
+      // Save to Pictures directory
+      await Filesystem.writeFile({
+        path: 'KameraHD/' + filename,
+        data: base64,
+        directory: Directory.Pictures
+      });
+      // Notify MediaStore agar langsung kelihatan di galeri
+      try {
+        var MediaStore = Capacitor.Plugins.MediaStore;
+        if (MediaStore && MediaStore.scanFile) {
+          await MediaStore.scanFile({ path: '/storage/emulated/0/Pictures/KameraHD/' + filename });
+        }
+      } catch(e) {}
       return;
-    } catch(e) { /* fallback download */ }
+    } catch(e) {
+      console.warn('Filesystem save failed:', e.message);
+    }
   }
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
