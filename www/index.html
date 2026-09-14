@@ -11,8 +11,7 @@
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<!-- Loading state -->
-<div id="loading">
+<div id="loading" style="position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;z-index:100">
   <div style="text-align:center">
     <div class="spinner"></div>
     <span style="color:#60a5fa;font-size:14px">Membuka kamera...</span>
@@ -20,7 +19,7 @@
   </div>
 </div>
 
-<div id="app" class="hidden">
+<div id="app">
   <video id="video" autoplay playsinline muted></video>
   <div id="grid" class="hidden">
     <div class="g-v" style="left:33.3%"></div><div class="g-v" style="left:66.6%"></div>

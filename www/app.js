@@ -1,4 +1,4 @@
-// Kamera HD v6.1 - instant capture, robust error handling
+// Kamera HD v7 - native permission first, no loading, instant camera
 const $ = id => document.getElementById(id);
 const video = $('video');
 const capCanvas = $('captureCanvas');
@@ -13,8 +13,6 @@ let recording = null, recStart = 0, recTick = null;
 let zoomV = 1;
 let imgCap = null, photoMax = null;
 let isNative = false;
-let CapacitorHttp = null;
-let CapacitorPlugins = {};
 
 function toast(m, ms) { ms = ms || 2200; const t = $('toast'); t.textContent = m; t.classList.remove('hidden'); clearTimeout(t._x); t._x = setTimeout(function() { t.classList.add('hidden'); }, ms); }
 function fmtTimemark(d) { d = d || new Date(); return d.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replaceAll(':', '.'); }
@@ -23,47 +21,63 @@ function compassStr() { return heading == null ? '' : ' ' + Math.round(heading) 
 // ===== DETEKSI NATIVE =====
 isNative = (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform());
 
+// ===== MINTA IZIN NATIVE DULU =====
+async function requestNativePermissions() {
+  if (!isNative) return true;
+  try {
+    var perms = Capacitor.Plugins.Permissions;
+    if (perms && perms.requestPermissions) {
+      var result = await perms.requestPermissions({
+        permissions: ['camera', 'microphone', 'location', 'photos']
+      });
+      var granted = true;
+      if (result && result.results) {
+        result.results.forEach(function(r) {
+          if (r && r.state && r.state !== 'granted') granted = false;
+        });
+      }
+      if (!granted) {
+        toast('Izin ditolak, buka Pengaturan > Izinkan semua');
+      }
+      return granted;
+    }
+    return true;
+  } catch(e) {
+    console.warn('Native permission error:', e.message);
+    return true; // lanjutkan meskipun error
+  }
+}
+
 // ===== INISIALISASI =====
 window.addEventListener('load', function() {
+  // Buka kamera langsung - tidak ada loading untuk native
   if (isNative) {
-    // APK: cek Capacitor permissions, langsung buka kamera
     initCamera();
   } else {
-    // Web: tampilkan loading, auto request izin
+    // Web: loading minimal
     $('loading').classList.remove('hidden');
-    setTimeout(initCamera, 300);
+    setTimeout(function() { initCamera(); }, 300);
   }
 });
 
 async function initCamera() {
   try {
-    // Minta izin native untuk Capacitor APK
-    if (isNative) {
-      try {
-        var perms = Capacitor.Plugins.Permissions;
-        if (perms && perms.requestPermissions) {
-          var result = await perms.requestPermissions({
-            permissions: ['camera', 'microphone', 'location', 'photos']
-          });
-          console.log('Native permissions:', result);
-        }
-      } catch(e) { console.warn('Native perm check:', e.message); }
-    }
-    if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) { try { await DeviceMotionEvent.requestPermission(); } catch(e) {} }
-    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) { try { await DeviceOrientationEvent.requestPermission(); } catch(e) {} }
+    // 1. Minta izin native dulu
+    await requestNativePermissions();
+
+    // 2. Buka kamera
     if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
     var parts = S.res.split('x').map(Number);
     var w = parts[0], h = parts[1];
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: S.facing }, width: { ideal: w }, height: { ideal: h }, aspectRatio: { ideal: w / h } }, audio: true });
     video.srcObject = stream; await video.play();
-    // Set video dimensions ke maksimal
-    var vw = video.videoWidth || w, vh = video.videoHeight || h;
     track = stream.getVideoTracks()[0];
     caps = track.getCapabilities ? track.getCapabilities() : {};
     settings = track.getSettings ? track.getSettings() : {};
     try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous', exposureMode: 'continuous', whiteBalanceMode: 'continuous' }] }); } catch(e) {}
     photoMax = null; imgCap = null;
     try { if ('ImageCapture' in window) { imgCap = new ImageCapture(track); var pc = await imgCap.getPhotoCapabilities(); if (pc.imageWidth && pc.imageWidth.max) photoMax = { w: pc.imageWidth.max, h: pc.imageHeight.max }; } } catch(e) {}
+    var vw = settings.width || video.videoWidth, vh = settings.height || video.videoHeight;
     $('hdBadge').textContent = '' + vw + '\u00D7' + vh;
     $('hdBadge').title = 'Foto maks ' + (photoMax ? photoMax.w + '\u00D7' + photoMax.h : vw + '\u00D7' + vh);
     if (caps.zoom) { $('zoom').min = caps.zoom.min; $('zoom').max = Math.min(caps.zoom.max, 10); $('zoom').step = caps.zoom.step || 0.1; }
@@ -73,8 +87,8 @@ async function initCamera() {
     $('app').classList.remove('hidden');
   } catch(e) {
     console.error('Camera init error:', e);
-    $('permStatus').textContent = 'Gagal: ' + e.message;
-    $('loading').innerHTML = '<div style="text-align:center"><div style="color:#ef4444;font-size:16px">\u2716 Kamera gagal dibuka</div><small style="color:#64748b;margin-top:8px;display:block">' + e.message + '</small><button onclick="location.reload()" style="margin-top:16px;background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:10px 24px;cursor:pointer">Coba Lagi</button></div>';
+    $('loading').innerHTML = '<div style="text-align:center"><div style="color:#ef4444;font-size:18px;font-weight:800">\u2716 Kamera Gagal Dibuka</div><small style="color:#64748b;margin-top:8px;display:block">' + (e.message || e.toString()) + '</small><br><button onclick="location.reload()" style="margin-top:16px;background:#3b82f6;color:#fff;border:none;border-radius:12px;padding:12px 32px;font-size:15px;cursor:pointer;font-weight:700">Coba Lagi</button></div>';
+    return;
   }
   requestGPS();
 }
@@ -250,8 +264,7 @@ async function captureFullRes() {
       bmp.close();
       return { canvas: capCanvas, fullRes: true };
     } catch(e) {
-      // Fallback ke video frame jika ImageCapture gagal
-      console.warn('ImageCapture failed, falling back to video frame:', e);
+      console.warn('ImageCapture failed, fallback:', e.message);
     }
   }
   var c = grabVideoFrame();
@@ -289,37 +302,22 @@ function burnTimemark(ctx, W, H) {
 }
 async function lockFocus() { try { if (track && caps.focusMode) { await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] }); await new Promise(function(r) { setTimeout(r, 200); }); } } catch(e) {} }
 
-// ===== SIMPAN KE GALERI (background, non-blocking) =====
+// ===== SIMPAN KE GALERI =====
 async function saveToGallery(blob, filename) {
   var isApk = isNative || /android|capacitor/i.test(navigator.userAgent);
   if (isApk) {
     try {
       var Filesystem = Capacitor.Plugins.Filesystem;
       var Directory = Capacitor.Plugins.Directory;
-      // Convert blob to base64
       var base64 = await new Promise(function(res, rej) {
         var reader = new FileReader();
         reader.onload = function() { res(reader.result); };
         reader.onerror = rej;
         reader.readAsDataURL(blob);
       });
-      // Save to Pictures directory
-      await Filesystem.writeFile({
-        path: 'KameraHD/' + filename,
-        data: base64,
-        directory: Directory.Pictures
-      });
-      // Notify MediaStore agar langsung kelihatan di galeri
-      try {
-        var MediaStore = Capacitor.Plugins.MediaStore;
-        if (MediaStore && MediaStore.scanFile) {
-          await MediaStore.scanFile({ path: '/storage/emulated/0/Pictures/KameraHD/' + filename });
-        }
-      } catch(e) {}
+      await Filesystem.writeFile({ path: 'KameraHD/' + filename, data: base64, directory: Directory.Pictures });
       return;
-    } catch(e) {
-      console.warn('Filesystem save failed:', e.message);
-    }
+    } catch(e) { console.warn('Gallery save failed:', e.message); }
   }
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -330,24 +328,21 @@ async function saveToGallery(blob, filename) {
   URL.revokeObjectURL(a.href);
 }
 
-// ===== AMBIL FOTO - INSTAN =====
+// ===== AMBIL FOTO =====
 async function takePhotoHD() {
   var t = Number($('timer').value);
   if (t > 0) for (var i = t; i > 0; i--) { $('countdown').textContent = i; $('countdown').classList.remove('hidden'); await new Promise(function(r) { setTimeout(r, 1000); }); }
   $('countdown').classList.add('hidden');
   if (S.stab && stability < 20) { toast('Terlalu goyang!'); await new Promise(function(r) { setTimeout(r, 500); }); }
   await lockFocus();
-  // Capture sekali saja
   var result = await captureFullRes();
   var canvas = result.canvas;
-  // Burn timemark langsung ke canvas penuh (sudah penuh resolusi)
   burnTimemark(canvas.getContext('2d'), canvas.width, canvas.height);
   var fname = 'kamera-' + Date.now() + '.jpg';
   var finalBlob = await new Promise(function(r) { canvas.toBlob(r, 'image/jpeg', 0.97); });
   var url = URL.createObjectURL(finalBlob);
   var score = Math.round(sharpScore(canvas) / 100);
   addGal({ type: 'photo', url: url, time: new Date(), w: canvas.width, h: canvas.height, score: score });
-  // Background save - non-blocking
   setTimeout(function() { saveToGallery(finalBlob, fname); }, 100);
   setTimeout(function() { URL.revokeObjectURL(url); }, 10000);
   toast(result.fullRes ? 'Tersimpan' : 'Tersimpan');
