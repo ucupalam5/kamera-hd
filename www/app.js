@@ -1,4 +1,4 @@
-// Kamera HD v5 - iPhone-like clarity, stamp logic fix, clean UI
+// Kamera HD v6 - instant capture, no splash, fire-and-forget save
 const $ = id => document.getElementById(id);
 const video = $('video');
 const capCanvas = $('captureCanvas');
@@ -12,15 +12,22 @@ let stability = 100, motionE = 0;
 let recording = null, recStart = 0, recTick = null;
 let zoomV = 1;
 let imgCap = null, photoMax = null;
+let isNative = false;
 
 function toast(m, ms) { ms = ms || 2200; const t = $('toast'); t.textContent = m; t.classList.remove('hidden'); clearTimeout(t._x); t._x = setTimeout(function() { t.classList.add('hidden'); }, ms); }
 function fmtTimemark(d) { d = d || new Date(); return d.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replaceAll(':', '.'); }
 function compassStr() { return heading == null ? '' : ' ' + Math.round(heading) + '\u00B0'; }
-function stampVisible() { return S.stamp; }
 
-// ===== IZIN OTOMATIS =====
+// ===== DETEKSI NATIVE (APK) =====
+isNative = (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform());
+
+// ===== IZIN OTOMATIS - TANPA SPLASH =====
 async function requestAll() {
   try {
+    if (isNative) {
+      // Di APK, izin sudah di AndroidManifest. Cukup buka kamera langsung.
+      // Tapi tetap request agar browser tahu izin diizinkan
+    }
     if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) { try { await DeviceMotionEvent.requestPermission(); } catch(e) {} }
     if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) { try { await DeviceOrientationEvent.requestPermission(); } catch(e) {} }
     if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
@@ -39,17 +46,18 @@ async function requestAll() {
     $('hdBadge').title = 'Video ' + rw + '\u00D7' + rh + (photoMax ? '. Foto maks ' + photoMax.w + '\u00D7' + photoMax.h : '') + '.';
     if (caps.zoom) { $('zoom').min = caps.zoom.min; $('zoom').max = Math.min(caps.zoom.max, 10); $('zoom').step = caps.zoom.step || 0.1; }
     applyRatioMask();
-  } catch(e) { $('permStatus').textContent = 'Izin kamera ditolak: ' + e.message; return false; }
+    // Sembunyikan loading langsung
+    $('app').classList.remove('loading');
+  } catch(e) { $('permStatus').textContent = 'Kamera: ' + e.message; toast('Izin kamera ditolak'); }
   requestGPS();
-  return true;
 }
 function requestGPS() {
-  if (!('geolocation' in navigator)) { $('lsStreet').textContent = 'GPS tidak didukung'; return; }
+  if (!('geolocation' in navigator)) { $('gpsInfo').textContent = 'GPS tidak didukung'; return; }
   navigator.geolocation.watchPosition(async function(p) {
     gps.lat = p.coords.latitude; gps.lon = p.coords.longitude; gps.acc = p.coords.accuracy;
+    $('gpsInfo').textContent = '\uD83D\uDCCD ' + gps.lat.toFixed(5) + ', ' + gps.lon.toFixed(5) + ' (\u00B1' + Math.round(gps.acc) + 'm)';
     if (!gps._t || Date.now() - gps._t > 25000) { gps._t = Date.now(); await reverseStreet(); }
-    $('sharpInfo').style.display = 'none';
-updateStampUI();
+    updateStampUI();
   }, function(e) { $('lsStreet').textContent = 'Lokasi tidak aktif'; }, { enableHighAccuracy: true });
 }
 async function reverseStreet() {
@@ -71,11 +79,7 @@ async function reverseStreet() {
   } catch(e) { gps.street = gps.lat.toFixed(5) + ', ' + gps.lon.toFixed(5); }
 }
 function updateStampUI() {
-  // HENTIKAN update jika stamp OFF - langsung sembunyikan
-  if (!S.stamp) {
-    $('liveStamp').classList.add('stamp-off');
-    return;
-  }
+  if (!S.stamp) { $('liveStamp').classList.add('stamp-off'); return; }
   $('liveStamp').classList.remove('stamp-off');
   $('lsStreet').textContent = gps.street || 'Mencari nama jalan...';
   var d = fmtTimemark();
@@ -87,8 +91,14 @@ function updateStampUI() {
 }
 setInterval(updateStampUI, 1000);
 $('customText').addEventListener('input', updateStampUI);
-$('allowBtn').onclick = async function() { if (await requestAll()) { $('permModal').classList.add('hidden'); $('app').classList.remove('hidden'); toast('Kamera siap'); } };
-window.addEventListener('load', async function() { try { if (await requestAll()) { $('permModal').classList.add('hidden'); $('app').classList.remove('hidden'); } } catch(e) {} });
+window.addEventListener('load', async function() {
+  // JIKA NATIVE: langsung buka kamera tanpa splash
+  // JIKA WEB: minimal loading state
+  if (!isNative) {
+    $('app').classList.add('loading');
+  }
+  await requestAll();
+});
 
 // ===== UI =====
 $('settingsBtn').onclick = function() { $('sheet').classList.remove('hidden'); };
@@ -135,8 +145,6 @@ $('zoom').oninput = async function(e) {
 function bindToggle(id, key, on, off) { $(id).onclick = function() { S[key] = !S[key]; $(id).textContent = S[key] ? on : off; $(id).classList.toggle('on', S[key]); }; }
 bindToggle('tStab', 'stab', 'Stabil', 'Stabil');
 bindToggle('tStamp', 'stamp', 'Timestamp', 'Timestamp');
-// Saat stamp OFF, sembunyikan liveStamp
-if (!S.stamp) $('liveStamp').classList.add('stamp-off');
 bindToggle('tMirror', 'mirror', 'Mirror', 'Mirror');
 document.querySelectorAll('#modes button').forEach(function(b) { b.onclick = function() {
   document.querySelectorAll('#modes button').forEach(function(x) { x.classList.remove('on'); });
@@ -177,9 +185,9 @@ window.addEventListener('deviceorientationabsolute', function(e) { if (e.alpha !
 window.addEventListener('deviceorientation', function(e) { if (e.alpha != null && heading == null && e.webkitCompassHeading != null) { heading = e.webkitCompassHeading; $('compass').textContent = Math.round(heading) + '\u00B0'; } }, true);
 setInterval(function() { if (!video.videoWidth) return; window._stab = stability; $('stabDot').style.color = !S.stab ? '#666' : stability > 70 ? '#22c55e' : stability > 40 ? '#f59e0b' : '#ef4444'; }, 500);
 
-// ===== KETAJAMAN (untuk info saja, tidak dipakai untuk filter) =====
+// ===== KETAJAMAN (ringan, 64x64 saja) =====
 function sharpScore(canvas) {
-  var w = 160, h = Math.max(1, Math.round(160 * canvas.height / canvas.width));
+  var w = 64, h = Math.max(1, Math.round(64 * canvas.height / canvas.width));
   var ctx = workCanvas.getContext('2d', { willReadFrequently: true });
   workCanvas.width = w; workCanvas.height = h;
   ctx.drawImage(canvas, 0, 0, w, h);
@@ -238,7 +246,6 @@ function cropRatio(src) {
   out.getContext('2d').drawImage(src, (sw - cw) / 2, (sh - ch) / 2, cw, ch, 0, 0, cw, ch);
   return out;
 }
-// HAPUS sharpSmall - tidak perlu untuk kualitas iPhone-like
 function burnTimemark(ctx, W, H) {
   if (!S.stamp) return;
   var street = gps.street || 'Mencari lokasi...';
@@ -258,11 +265,11 @@ function burnTimemark(ctx, W, H) {
   if (coord) { ctx.fillStyle = '#fff'; ctx.fillText(coord, W * 0.03, H - barH + H * 0.10, W * 0.94); }
   if (note) { ctx.fillStyle = '#fff'; ctx.fillText(note.slice(0, 56), W * 0.03, H - barH - H * 0.035, W * 0.94); }
 }
-async function lockFocus() { try { if (track && caps.focusMode) { await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] }); await new Promise(function(r) { setTimeout(r, 350); }); } } catch(e) {} }
+async function lockFocus() { try { if (track && caps.focusMode) { await track.applyConstraints({ advanced: [{ focusMode: 'single-shot' }] }); await new Promise(function(r) { setTimeout(r, 200); }); } } catch(e) {} }
 
-// ===== SIMPAN KE GALERI =====
+// ===== SIMPAN KE GALERI (background, non-blocking) =====
 async function saveToGallery(blob, filename) {
-  var isApk = /android|capacitor/i.test(navigator.userAgent) || typeof Capacitor !== 'undefined';
+  var isApk = isNative || /android|capacitor/i.test(navigator.userAgent);
   if (isApk) {
     try {
       var Filesystem = Capacitor.Plugins.Filesystem;
@@ -274,9 +281,8 @@ async function saveToGallery(blob, filename) {
         reader.readAsDataURL(blob);
       });
       await Filesystem.writeFile({ path: 'KameraHD/' + filename, data: base64, directory: Directory.Pictures });
-      toast('\u2705 Disimpan ke Galeri');
       return;
-    } catch(e) {}
+    } catch(e) { /* fallback */ }
   }
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -285,41 +291,38 @@ async function saveToGallery(blob, filename) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(a.href);
-  toast('\uD83D\uDCDDiunduh');
 }
 
-// ===== AMBIL FOTO - iPhone-like: full sensor, tanpa crop, tanpa sharpen =====
+// ===== AMBIL FOTO - INSTAN (fire-and-forget) =====
 async function takePhotoHD() {
   var t = Number($('timer').value);
   if (t > 0) for (var i = t; i > 0; i--) { $('countdown').textContent = i; $('countdown').classList.remove('hidden'); await new Promise(function(r) { setTimeout(r, 1000); }); }
   $('countdown').classList.add('hidden');
-  if (S.stab && stability < 20) { toast('Terlalu goyang!'); await new Promise(function(r) { setTimeout(r, 700); }); }
+  if (S.stab && stability < 20) { toast('Terlalu goyang!'); await new Promise(function(r) { setTimeout(r, 500); }); }
   await lockFocus();
+  // Ambil foto - captureFullRes sekali saja
   var result = await captureFullRes();
   var canvas = result.canvas;
-  var s = sharpScore(canvas);
-  // TIDAK ada cropRatio untuk foto - langsung full resolution
-  var tmp = document.createElement('canvas'); tmp.width = canvas.width; tmp.height = canvas.height;
-  tmp.getContext('2d').drawImage(canvas, 0, 0);
-  // TIDAK ada sharpenSmall - biar alami seperti iPhone
-  burnTimemark(tmp.getContext('2d'), tmp.width, tmp.height);
-  $('sharpInfo').style.display = '';
-  $('sharpInfo').textContent = 'tajam: ' + Math.round(s) + ' • ' + tmp.width + '\u00D7' + tmp.height;
-  setTimeout(function() { $('sharpInfo').style.display = 'none'; }, 3000);
-  var blob = await new Promise(function(r) { tmp.toBlob(r, 'image/jpeg', 0.97); });
   var fname = 'kamera-' + Date.now() + '.jpg';
-  addGal({ type: 'photo', url: tmp.toDataURL('image/jpeg', 0.97), time: new Date(), w: tmp.width, h: tmp.height, score: Math.round(s) });
-  await saveToGallery(blob, fname);
-  toast(result.fullRes ? 'Tersimpan full-res' : 'Tersimpan');
+  // Burn timemark di canvas hasil penuh
+  burnTimemark(canvas.getContext('2d'), canvas.width, canvas.height);
+  var finalBlob = await new Promise(function(r) { canvas.toBlob(r, 'image/jpeg', 0.97); });
+  var url = URL.createObjectURL(finalBlob);
+  // Sharp score ringan (64x64, non-blocking)
+  var score = Math.round(sharpScore(canvas) / 100);
+  addGal({ type: 'photo', url: url, time: new Date(), w: canvas.width, h: canvas.height, score: score });
+  // Simpan ke galeri BACKGROUND (non-blocking)
+  setTimeout(function() { saveToGallery(finalBlob, fname); }, 200);
+  toast(result.fullRes ? 'Tersimpan' : 'Tersimpan');
 }
 function mainShutter() { if (S.mode === 'video') toggleVideo(); else takePhotoHD(); }
 $('photoBtn').onclick = mainShutter;
 
-// ===== BURST - tanpa sharpen =====
+// ===== BURST =====
 async function takeBurst() {
-  toast('Burst 5x...');
+  toast('Burst...');
   var frames = [];
-  for (var i = 0; i < 5; i++) { await new Promise(function(r) { setTimeout(r, 100); }); frames.push(grabVideoFrame()); }
+  for (var i = 0; i < 5; i++) { await new Promise(function(r) { setTimeout(r, 80); }); frames.push(grabVideoFrame()); }
   var scored = frames.map(function(f) { return { canvas: f, score: sharpScore(f) }; });
   scored.sort(function(a, b) { return b.score - a.score; });
   var best = scored.slice(0, 3);
@@ -334,7 +337,7 @@ async function takeBurst() {
   toast('Burst: 3 terbaik');
 }
 
-// ===== VIDEO - tanpa crop (1.0), tanpa sharpen =====
+// ===== VIDEO =====
 $('videoBtn').onclick = toggleVideo;
 function recStr() { var s = Math.floor((Date.now() - recStart) / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
 function toggleVideo() {
@@ -350,7 +353,6 @@ function toggleVideo() {
     rx.save();
     var f = filterCss();
     rx.filter = f === 'none' ? 'none' : f;
-    // TANPA CROP - full resolution untuk kejernihan maksimum
     rx.drawImage(video, 0, 0, vw, vh);
     rx.restore(); rx.filter = 'none';
     burnTimemark(rx, vw, vh);
@@ -367,14 +369,13 @@ function toggleVideo() {
     var url = URL.createObjectURL(blob);
     var fname = 'kamera-' + Date.now() + '.mp4';
     addGal({ type: 'video', url: url, time: new Date(), mime: mime });
-    await saveToGallery(blob, fname);
+    setTimeout(function() { saveToGallery(blob, fname); }, 200);
     toast('Tersimpan di Galeri');
   };
   recording = { mr: mr }; mr.start(500); recStart = Date.now();
   $('recTimer').classList.remove('hidden');
   recTick = setInterval(function() { $('recTimer').textContent = '\u25CF ' + recStr(); }, 500);
   loop(); toast('Merekam...');
-  $('sharpInfo').style.display = 'none';
 }
 
 // ===== GALERI =====
@@ -384,10 +385,10 @@ function renderGal() {
   gallery.forEach(function(g, i) {
     var d = document.createElement('div'); d.className = 'g-item';
     var ext = g.type === 'photo' ? 'jpg' : (g.mime && g.mime.indexOf('mp4') >= 0 ? 'mp4' : 'webm');
-    var info = g.w ? '<div class="g-info">' + g.w + '\u00D7' + g.h + ' skor ' + g.score + '</div>' : '';
+    var info = g.w ? '<div class="g-info">' + g.w + '\u00D7' + g.h + '</div>' : '';
     var imgHtml = g.type === 'photo'
-      ? '<img src="' + g.url + '"/>' + info + '<div class="g-foot"><a href="' + g.url + '" download="kamera-' + g.time.getTime() + '.' + ext + '">⬇️</a><button data-i="' + i + '">🗑️</button></div>'
-      : '<video src="' + g.url + '" controls></video>' + info + '<div class="g-foot"><a href="' + g.url + '" download="kamera-' + g.time.getTime() + '.' + ext + '">⬇️</a><button data-i="' + i + '">🗑️</button></div>';
+      ? '<img src="' + g.url + '"/>' + info + '<div class="g-foot"><a href="' + g.url + '" download="kamera-' + g.time.getTime() + '.' + ext + '">\u2B07\uFE0F</a><button data-i="' + i + '">Hapus</button></div>'
+      : '<video src="' + g.url + '" controls></video>' + info + '<div class="g-foot"><a href="' + g.url + '" download="kamera-' + g.time.getTime() + '.' + ext + '">\u2B07\uFE0F</a><button data-i="' + i + '">Hapus</button></div>';
     d.innerHTML = imgHtml;
     $('galleryGrid').appendChild(d);
   });
@@ -395,15 +396,5 @@ function renderGal() {
 }
 $('galleryBtn').onclick = function() { $('galleryModal').classList.remove('hidden'); };
 $('closeGallery').onclick = function() { $('galleryModal').classList.add('hidden'); };
-$('shareLast').onclick = async function() {
-  if (!gallery.length) return toast('Belum ada hasil');
-  try {
-    var g = gallery[0]; var r = await fetch(g.url); var blob = await r.blob();
-    var file = new File([blob], 'kamera.' + (g.type === 'photo' ? 'jpg' : 'mp4'), { type: blob.type });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: 'Kamera HD' });
-    else { var a = document.createElement('a'); a.href = g.url; a.download = 'kamera-hd'; a.click(); }
-  } catch(e) { toast('Share gagal'); }
-};
 if ('serviceWorker' in navigator) window.addEventListener('load', function() { navigator.serviceWorker.register('sw.js').catch(function() {}); });
-$('sharpInfo').style.display = 'none';
 updateStampUI();
