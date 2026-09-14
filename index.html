@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Kamera HD</title>
+<meta name="theme-color" content="#000000" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📷</text></svg>" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="permModal">
+  <div class="perm-card">
+    <div class="perm-icon">📷</div>
+    <h2>Kamera HD</h2>
+    <p>Butuh izin <b>Kamera, Mikrofon & Lokasi</b> untuk foto resolusi penuh + nama jalan otomatis.</p>
+    <button id="allowBtn" class="big-btn">✅ Izinkan & Buka Kamera</button>
+    <small id="permStatus">Menyiapkan...</small>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <!-- Video fullscreen di belakang -->
+  <video id="video" autoplay playsinline muted></video>
+  <div id="ratioMaskTop"></div><div id="ratioMaskBottom"></div>
+  <div id="grid" class="hidden"><div class="g-v" style="left:33.3%"></div><div class="g-v" style="left:66.6%"></div><div class="g-h" style="top:33.3%"></div><div class="g-h" style="top:66.6%"></div></div>
+  <div id="focusBox" class="hidden"></div>
+  <div id="countdown" class="hidden">3</div>
+
+  <!-- Atas overlay -->
+  <header id="topbar">
+    <button id="flashBtn" class="icon-btn" title="Flash">⚡</button>
+    <span id="hdBadge" title="Resolusi asli sensor">…</span>
+    <span id="stabDot" title="Stabil">●</span>
+    <div class="spacer"></div>
+    <span id="compass">–°</span>
+    <button id="gridBtn" class="icon-btn" title="Grid">⊞</button>
+    <button id="settingsBtn" class="icon-btn" title="Pengaturan">⚙️</button>
+  </header>
+
+  <!-- Mode strip -->
+  <nav id="modes">
+    <button data-mode="photo" class="on">FOTO</button>
+    <button data-mode="burst">BURST</button>
+    <button data-mode="doc">DOKUMEN</button>
+    <button data-mode="night">MALAM</button>
+    <button data-mode="video">VIDEO</button>
+  </nav>
+
+  <!-- Timemark -->
+  <div id="liveStamp"><b id="lsStreet">Mencari lokasi...</b><span id="lsDate">...</span></div>
+  <div id="toast" class="hidden"></div>
+
+  <!-- Bawah overlay -->
+  <footer id="bottombar">
+    <button id="galleryBtn" class="icon-btn big">🖼️<span id="gCount">0</span></button>
+    <button id="photoBtn" class="shutter" title="Ambil"></button>
+    <button id="videoBtn" class="icon-btn big hidden" title="Rekam">🔴</button>
+    <button id="switchBtn" class="icon-btn big" title="Ganti">🔄</button>
+  </footer>
+  <div id="recTimer" class="hidden">● 00:00</div>
+  <div id="sharpInfo">tajam: –</div>
+</div>
+
+<div id="sheet" class="hidden">
+  <div class="sheet-card">
+    <div class="sheet-head"><b>⚙️ Pengaturan</b><button id="closeSheet" class="icon-btn">✕</button></div>
+    <div class="grid2">
+    <label>Kualitas foto
+      <select id="resolution">
+        <option value="1280x720">HD 720p</option>
+        <option value="1920x1080" selected>Full HD 1080p</option>
+        <option value="2560x1440">QHD 1440p</option>
+        <option value="3840x2160">4K / Maksimal</option>
+      </select>
+    </label>
+    <label>Rasio
+      <select id="ratio"><option value="full" selected>Full layar</option><option value="16:9">16:9</option><option value="4:3">4:3</option><option value="1:1">1:1</option></select>
+    </label>
+    </div>
+    <label>Zoom <span id="zoomVal">1.0x</span><input type="range" id="zoom" min="1" max="5" step="0.1" value="1" /></label>
+    <div class="toggles">
+      <button id="tStab" class="toggle on">📳 Stabil ON</button>
+      <button id="tBlur" class="toggle on">✨ Anti-Blur ON</button>
+      <button id="tStamp" class="toggle on">🕒 Timestamp ON</button>
+      <button id="tMirror" class="toggle">🪞 Mirror OFF</button>
+      <button id="tSharp" class="toggle on">🗡️ Penajaman ON</button>
+    </div>
+    <label>Filter
+      <select id="filter"><option value="none" selected>Normal</option><option value="vivid">Vivid</option><option value="bw">Hitam Putih</option><option value="night">🌙 Malam</option></select>
+    </label>
+    <label>Timer <select id="timer"><option value="0" selected>Off</option><option value="3">3 dtk</option><option value="5">5 dtk</option><option value="10">10 dtk</option></select></label>
+    <input id="customText" placeholder="Catatan (mis: Survey - Andi)" />
+    <small id="gpsInfo">📍 GPS: menunggu izin...</small>
+    <small class="hint">Tips tajam: ketuk objek untuk kunci fokus • tombol volume = shutter • ketuk 2x = zoom 2x • tahan HP sampai titik hijau.</small>
+  </div>
+</div>
+
+<div id="galleryModal" class="hidden">
+  <div class="sheet-head"><b>🖼️ Hasil</b><div><button id="shareLast" class="icon-btn" title="Bagikan">📤</button> <button id="closeGallery" class="icon-btn">✕</button></div></div>
+  <div id="galleryGrid"></div>
+</div>
+
+<canvas id="captureCanvas" class="hidden"></canvas>
+<canvas id="workCanvas" class="hidden"></canvas>
+<script src="app.js"></script>
+</body>
+</html>

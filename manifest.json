@@ -1,0 +1,15 @@
+{
+  "name": "Kamera HD Pro - Stabilizer + Timestamp + GPS",
+  "short_name": "Kamera HD",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0f1a",
+  "theme_color": "#0b0f1a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📷</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

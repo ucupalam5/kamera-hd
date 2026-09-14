@@ -1,0 +1,9 @@
+{
+  "appId": "com.kamerahd.pro",
+  "appName": "Kamera HD",
+  "webDir": ".",
+  "backgroundColor": "#000000",
+  "android": {
+    "allowMixedContent": true
+  }
+}
