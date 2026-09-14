@@ -61,3 +61,5 @@ input[type=range]{width:100%;accent-color:#6366f1;height:4px}
 .g-item img,.g-item video{width:100%;display:block;max-height:260px;object-fit:cover}
 .g-foot{padding:8px;display:flex;gap:6px}.g-foot a,.g-foot button{flex:1;text-align:center;font-size:12px;background:#1f2937;color:#e0e0e0;border-radius:10px;padding:8px;text-decoration:none;border:1px solid rgba(255,255,255,.08);cursor:pointer}
 .g-info{font-size:10px;color:#64748b;padding:4px 8px}
+
+#loading{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center;z-index:100}

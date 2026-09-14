@@ -1,4 +1,4 @@
-// Kamera HD v6 - instant capture, no splash, fire-and-forget save
+// Kamera HD v6.1 - instant capture, robust error handling
 const $ = id => document.getElementById(id);
 const video = $('video');
 const capCanvas = $('captureCanvas');
@@ -18,16 +18,23 @@ function toast(m, ms) { ms = ms || 2200; const t = $('toast'); t.textContent = m
 function fmtTimemark(d) { d = d || new Date(); return d.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replaceAll(':', '.'); }
 function compassStr() { return heading == null ? '' : ' ' + Math.round(heading) + '\u00B0'; }
 
-// ===== DETEKSI NATIVE (APK) =====
+// ===== DETEKSI NATIVE =====
 isNative = (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform());
 
-// ===== IZIN OTOMATIS - TANPA SPLASH =====
-async function requestAll() {
+// ===== INISIALISASI =====
+window.addEventListener('load', function() {
+  if (isNative) {
+    // APK: cek Capacitor permissions, langsung buka kamera
+    initCamera();
+  } else {
+    // Web: tampilkan loading, auto request izin
+    $('loading').classList.remove('hidden');
+    setTimeout(initCamera, 300);
+  }
+});
+
+async function initCamera() {
   try {
-    if (isNative) {
-      // Di APK, izin sudah di AndroidManifest. Cukup buka kamera langsung.
-      // Tapi tetap request agar browser tahu izin diizinkan
-    }
     if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) { try { await DeviceMotionEvent.requestPermission(); } catch(e) {} }
     if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) { try { await DeviceOrientationEvent.requestPermission(); } catch(e) {} }
     if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
@@ -35,22 +42,29 @@ async function requestAll() {
     var w = parts[0], h = parts[1];
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: S.facing }, width: { ideal: w }, height: { ideal: h }, aspectRatio: { ideal: w / h } }, audio: true });
     video.srcObject = stream; await video.play();
+    // Set video dimensions ke maksimal
+    var vw = video.videoWidth || w, vh = video.videoHeight || h;
     track = stream.getVideoTracks()[0];
     caps = track.getCapabilities ? track.getCapabilities() : {};
     settings = track.getSettings ? track.getSettings() : {};
     try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous', exposureMode: 'continuous', whiteBalanceMode: 'continuous' }] }); } catch(e) {}
     photoMax = null; imgCap = null;
     try { if ('ImageCapture' in window) { imgCap = new ImageCapture(track); var pc = await imgCap.getPhotoCapabilities(); if (pc.imageWidth && pc.imageWidth.max) photoMax = { w: pc.imageWidth.max, h: pc.imageHeight.max }; } } catch(e) {}
-    var rw = settings.width || video.videoWidth, rh = settings.height || video.videoHeight;
-    $('hdBadge').textContent = '' + rw + '\u00D7' + rh;
-    $('hdBadge').title = 'Video ' + rw + '\u00D7' + rh + (photoMax ? '. Foto maks ' + photoMax.w + '\u00D7' + photoMax.h : '') + '.';
+    $('hdBadge').textContent = '' + vw + '\u00D7' + vh;
+    $('hdBadge').title = 'Foto maks ' + (photoMax ? photoMax.w + '\u00D7' + photoMax.h : vw + '\u00D7' + vh);
     if (caps.zoom) { $('zoom').min = caps.zoom.min; $('zoom').max = Math.min(caps.zoom.max, 10); $('zoom').step = caps.zoom.step || 0.1; }
     applyRatioMask();
-    // Sembunyikan loading langsung
-    $('app').classList.remove('loading');
-  } catch(e) { $('permStatus').textContent = 'Kamera: ' + e.message; toast('Izin kamera ditolak'); }
+    // Sembunyikan loading, tampilkan app
+    $('loading').style.display = 'none';
+    $('app').classList.remove('hidden');
+  } catch(e) {
+    console.error('Camera init error:', e);
+    $('permStatus').textContent = 'Gagal: ' + e.message;
+    $('loading').innerHTML = '<div style="text-align:center"><div style="color:#ef4444;font-size:16px">\u2716 Kamera gagal dibuka</div><small style="color:#64748b;margin-top:8px;display:block">' + e.message + '</small><button onclick="location.reload()" style="margin-top:16px;background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:10px 24px;cursor:pointer">Coba Lagi</button></div>';
+  }
   requestGPS();
 }
+
 function requestGPS() {
   if (!('geolocation' in navigator)) { $('gpsInfo').textContent = 'GPS tidak didukung'; return; }
   navigator.geolocation.watchPosition(async function(p) {
@@ -91,20 +105,12 @@ function updateStampUI() {
 }
 setInterval(updateStampUI, 1000);
 $('customText').addEventListener('input', updateStampUI);
-window.addEventListener('load', async function() {
-  // JIKA NATIVE: langsung buka kamera tanpa splash
-  // JIKA WEB: minimal loading state
-  if (!isNative) {
-    $('app').classList.add('loading');
-  }
-  await requestAll();
-});
 
 // ===== UI =====
 $('settingsBtn').onclick = function() { $('sheet').classList.remove('hidden'); };
 $('closeSheet').onclick = function() { $('sheet').classList.add('hidden'); };
 $('gridBtn').onclick = function() { $('grid').classList.toggle('hidden'); };
-$('switchCamBtn').onclick = async function() { S.facing = S.facing === 'environment' ? 'user' : 'environment'; await requestAll(); toast(S.facing === 'user' ? 'Depan' : 'Belakang'); };
+$('switchCamBtn').onclick = async function() { S.facing = S.facing === 'environment' ? 'user' : 'environment'; await initCamera(); toast(S.facing === 'user' ? 'Depan' : 'Belakang'); };
 $('flashToggle').onclick = async function() {
   try {
     if (!track || !caps.torch) return toast('Flash tidak didukung');
@@ -113,7 +119,7 @@ $('flashToggle').onclick = async function() {
     $('flashToggle').style.background = S.torchOn ? 'rgba(245,158,11,.3)' : '';
   } catch(e) { toast(e.message); }
 };
-$('resolution').onchange = function(e) { S.res = e.target.value; requestAll(); };
+$('resolution').onchange = function(e) { S.res = e.target.value; initCamera(); };
 $('ratio').onchange = function(e) { S.ratio = e.target.value; applyRatioMask(); };
 $('filter').onchange = function(e) { S.filter = e.target.value; video.style.filter = filterCss(); };
 function filterCss() {
@@ -185,7 +191,7 @@ window.addEventListener('deviceorientationabsolute', function(e) { if (e.alpha !
 window.addEventListener('deviceorientation', function(e) { if (e.alpha != null && heading == null && e.webkitCompassHeading != null) { heading = e.webkitCompassHeading; $('compass').textContent = Math.round(heading) + '\u00B0'; } }, true);
 setInterval(function() { if (!video.videoWidth) return; window._stab = stability; $('stabDot').style.color = !S.stab ? '#666' : stability > 70 ? '#22c55e' : stability > 40 ? '#f59e0b' : '#ef4444'; }, 500);
 
-// ===== KETAJAMAN (ringan, 64x64 saja) =====
+// ===== KETAJAMAN (ringan 64x64) =====
 function sharpScore(canvas) {
   var w = 64, h = Math.max(1, Math.round(64 * canvas.height / canvas.width));
   var ctx = workCanvas.getContext('2d', { willReadFrequently: true });
@@ -216,10 +222,10 @@ function grabVideoFrame() {
   return capCanvas;
 }
 async function captureFullRes() {
-  if (imgCap) {
+  if (imgCap && photoMax) {
     try {
-      var s = photoMax ? { imageWidth: photoMax.w, imageHeight: photoMax.h } : undefined;
-      var blob = s ? await imgCap.takePhoto(s) : await imgCap.takePhoto();
+      var s = { imageWidth: photoMax.w, imageHeight: photoMax.h };
+      var blob = await imgCap.takePhoto(s);
       var bmp = await createImageBitmap(blob);
       capCanvas.width = bmp.width; capCanvas.height = bmp.height;
       var ctx = capCanvas.getContext('2d');
@@ -227,10 +233,12 @@ async function captureFullRes() {
       if (S.facing === 'user' && S.mirror) { ctx.translate(bmp.width, 0); ctx.scale(-1, 1); }
       try { ctx.filter = filterCss() === 'none' ? 'none' : filterCss(); } catch(e) {}
       ctx.drawImage(bmp, 0, 0);
-      try { ctx.filter = 'none'; } catch(e) {}
       bmp.close();
       return { canvas: capCanvas, fullRes: true };
-    } catch(e) {}
+    } catch(e) {
+      // Fallback ke video frame jika ImageCapture gagal
+      console.warn('ImageCapture failed, falling back to video frame:', e);
+    }
   }
   var c = grabVideoFrame();
   return { canvas: c, fullRes: false };
@@ -282,7 +290,7 @@ async function saveToGallery(blob, filename) {
       });
       await Filesystem.writeFile({ path: 'KameraHD/' + filename, data: base64, directory: Directory.Pictures });
       return;
-    } catch(e) { /* fallback */ }
+    } catch(e) { /* fallback download */ }
   }
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -293,26 +301,26 @@ async function saveToGallery(blob, filename) {
   URL.revokeObjectURL(a.href);
 }
 
-// ===== AMBIL FOTO - INSTAN (fire-and-forget) =====
+// ===== AMBIL FOTO - INSTAN =====
 async function takePhotoHD() {
   var t = Number($('timer').value);
   if (t > 0) for (var i = t; i > 0; i--) { $('countdown').textContent = i; $('countdown').classList.remove('hidden'); await new Promise(function(r) { setTimeout(r, 1000); }); }
   $('countdown').classList.add('hidden');
   if (S.stab && stability < 20) { toast('Terlalu goyang!'); await new Promise(function(r) { setTimeout(r, 500); }); }
   await lockFocus();
-  // Ambil foto - captureFullRes sekali saja
+  // Capture sekali saja
   var result = await captureFullRes();
   var canvas = result.canvas;
-  var fname = 'kamera-' + Date.now() + '.jpg';
-  // Burn timemark di canvas hasil penuh
+  // Burn timemark langsung ke canvas penuh (sudah penuh resolusi)
   burnTimemark(canvas.getContext('2d'), canvas.width, canvas.height);
+  var fname = 'kamera-' + Date.now() + '.jpg';
   var finalBlob = await new Promise(function(r) { canvas.toBlob(r, 'image/jpeg', 0.97); });
   var url = URL.createObjectURL(finalBlob);
-  // Sharp score ringan (64x64, non-blocking)
   var score = Math.round(sharpScore(canvas) / 100);
   addGal({ type: 'photo', url: url, time: new Date(), w: canvas.width, h: canvas.height, score: score });
-  // Simpan ke galeri BACKGROUND (non-blocking)
-  setTimeout(function() { saveToGallery(finalBlob, fname); }, 200);
+  // Background save - non-blocking
+  setTimeout(function() { saveToGallery(finalBlob, fname); }, 100);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 10000);
   toast(result.fullRes ? 'Tersimpan' : 'Tersimpan');
 }
 function mainShutter() { if (S.mode === 'video') toggleVideo(); else takePhotoHD(); }
@@ -369,7 +377,7 @@ function toggleVideo() {
     var url = URL.createObjectURL(blob);
     var fname = 'kamera-' + Date.now() + '.mp4';
     addGal({ type: 'video', url: url, time: new Date(), mime: mime });
-    setTimeout(function() { saveToGallery(blob, fname); }, 200);
+    setTimeout(function() { saveToGallery(blob, fname); }, 100);
     toast('Tersimpan di Galeri');
   };
   recording = { mr: mr }; mr.start(500); recStart = Date.now();
