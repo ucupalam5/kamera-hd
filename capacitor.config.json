@@ -5,24 +5,11 @@
   "backgroundColor": "#000000",
   "server": {
     "androidScheme": "https",
-    "allowNavigation": ["**"],
-    "cleartext": true
+    "allowNavigation": ["**"]
   },
   "android": {
     "allowMixedContent": true,
     "requestsExternalStorage": true
   },
-  "plugins": {
-    "Permissions": {
-      "permissionDescriptions": {
-        "CAMERA": "Untuk mengambil foto dan video",
-        "RECORD_AUDIO": "Untuk merekam audio saat video",
-        "ACCESS_FINE_LOCATION": "Untuk mendapatkan lokasi nama jalan",
-        "READ_EXTERNAL_STORAGE": "Untuk menyimpan foto ke galeri",
-        "WRITE_EXTERNAL_STORAGE": "Untuk menyimpan foto ke galeri",
-        "READ_MEDIA_IMAGES": "Untuk akses galeri",
-        "READ_MEDIA_VIDEO": "Untuk akses galeri video"
-      }
-    }
-  }
+  "plugins": {}
 }

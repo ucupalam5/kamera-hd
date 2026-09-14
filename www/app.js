@@ -1,4 +1,4 @@
-// Kamera HD v7 - native permission first, no loading, instant camera
+// Kamera HD v7 - no loading, no fake plugins, direct camera
 const $ = id => document.getElementById(id);
 const video = $('video');
 const capCanvas = $('captureCanvas');
@@ -21,40 +21,12 @@ function compassStr() { return heading == null ? '' : ' ' + Math.round(heading) 
 // ===== DETEKSI NATIVE =====
 isNative = (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform());
 
-// ===== MINTA IZIN NATIVE DULU =====
-async function requestNativePermissions() {
-  if (!isNative) return true;
-  try {
-    var perms = Capacitor.Plugins.Permissions;
-    if (perms && perms.requestPermissions) {
-      var result = await perms.requestPermissions({
-        permissions: ['camera', 'microphone', 'location', 'photos']
-      });
-      var granted = true;
-      if (result && result.results) {
-        result.results.forEach(function(r) {
-          if (r && r.state && r.state !== 'granted') granted = false;
-        });
-      }
-      if (!granted) {
-        toast('Izin ditolak, buka Pengaturan > Izinkan semua');
-      }
-      return granted;
-    }
-    return true;
-  } catch(e) {
-    console.warn('Native permission error:', e.message);
-    return true; // lanjutkan meskipun error
-  }
-}
-
-// ===== INISIALISASI =====
+// ===== INISIALISASI - LANGSUNG BUKA KAMERA =====
 window.addEventListener('load', function() {
-  // Buka kamera langsung - tidak ada loading untuk native
+  // Untuk native APK: langsung buka kamera tanpa loading
   if (isNative) {
     initCamera();
   } else {
-    // Web: loading minimal
     $('loading').classList.remove('hidden');
     setTimeout(function() { initCamera(); }, 300);
   }
@@ -62,34 +34,72 @@ window.addEventListener('load', function() {
 
 async function initCamera() {
   try {
-    // 1. Minta izin native dulu
-    await requestNativePermissions();
-
-    // 2. Buka kamera
+    // Cleanup stream lama
     if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
+
     var parts = S.res.split('x').map(Number);
     var w = parts[0], h = parts[1];
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: S.facing }, width: { ideal: w }, height: { ideal: h }, aspectRatio: { ideal: w / h } }, audio: true });
-    video.srcObject = stream; await video.play();
+
+    // Minta akses kamera - Capacitor handle izin via AndroidManifest
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: S.facing },
+        width: { ideal: w, min: 640 },
+        height: { ideal: h, min: 480 },
+        aspectRatio: { ideal: w / h }
+      },
+      audio: true
+    });
+
+    video.srcObject = stream;
+    await video.play();
+
     track = stream.getVideoTracks()[0];
     caps = track.getCapabilities ? track.getCapabilities() : {};
     settings = track.getSettings ? track.getSettings() : {};
+
+    // Set focus/exposure mode
     try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous', exposureMode: 'continuous', whiteBalanceMode: 'continuous' }] }); } catch(e) {}
+
+    // Dapatkan resolusi foto maks
     photoMax = null; imgCap = null;
-    try { if ('ImageCapture' in window) { imgCap = new ImageCapture(track); var pc = await imgCap.getPhotoCapabilities(); if (pc.imageWidth && pc.imageWidth.max) photoMax = { w: pc.imageWidth.max, h: pc.imageHeight.max }; } } catch(e) {}
+    try {
+      if ('ImageCapture' in window) {
+        imgCap = new ImageCapture(track);
+        var pc = await imgCap.getPhotoCapabilities();
+        if (pc.imageWidth && pc.imageWidth.max) photoMax = { w: pc.imageWidth.max, h: pc.imageHeight.max };
+      }
+    } catch(e) {}
+
     var vw = settings.width || video.videoWidth, vh = settings.height || video.videoHeight;
     $('hdBadge').textContent = '' + vw + '\u00D7' + vh;
     $('hdBadge').title = 'Foto maks ' + (photoMax ? photoMax.w + '\u00D7' + photoMax.h : vw + '\u00D7' + vh);
-    if (caps.zoom) { $('zoom').min = caps.zoom.min; $('zoom').max = Math.min(caps.zoom.max, 10); $('zoom').step = caps.zoom.step || 0.1; }
+
+    // Zoom
+    if (caps.zoom) {
+      $('zoom').min = caps.zoom.min;
+      $('zoom').max = Math.min(caps.zoom.max, 10);
+      $('zoom').step = caps.zoom.step || 0.1;
+    }
+
     applyRatioMask();
-    // Sembunyikan loading, tampilkan app
+
+    // SEMUANYA SUKSES - Sembunyikan loading, tampilkan app
     $('loading').style.display = 'none';
     $('app').classList.remove('hidden');
+
   } catch(e) {
     console.error('Camera init error:', e);
-    $('loading').innerHTML = '<div style="text-align:center"><div style="color:#ef4444;font-size:18px;font-weight:800">\u2716 Kamera Gagal Dibuka</div><small style="color:#64748b;margin-top:8px;display:block">' + (e.message || e.toString()) + '</small><br><button onclick="location.reload()" style="margin-top:16px;background:#3b82f6;color:#fff;border:none;border-radius:12px;padding:12px 32px;font-size:15px;cursor:pointer;font-weight:700">Coba Lagi</button></div>';
+    // Tampilkan error dengan tombol retry
+    $('loading').innerHTML = '<div style="text-align:center;padding:20px">' +
+      '<div style="color:#ef4444;font-size:20px;font-weight:800">\u2716 Kamera Gagal</div>' +
+      '<small style="color:#64748b;display:block;margin:8px 0">' + (e.name || '') + ': ' + (e.message || e.toString()) + '</small>' +
+      '<small style="color:#64748b;display:block;margin:4px 0">Pastikan izin kamera diaktifkan di Pengaturan > Aplikasi > Kamera HD</small>' +
+      '<button onclick="location.reload()" style="margin-top:16px;background:#3b82f6;color:#fff;border:none;border-radius:12px;padding:12px 32px;font-size:15px;cursor:pointer;font-weight:700">Coba Lagi</button></div>';
     return;
   }
+
+  // GPS
   requestGPS();
 }
 
@@ -100,7 +110,7 @@ function requestGPS() {
     $('gpsInfo').textContent = '\uD83D\uDCCD ' + gps.lat.toFixed(5) + ', ' + gps.lon.toFixed(5) + ' (\u00B1' + Math.round(gps.acc) + 'm)';
     if (!gps._t || Date.now() - gps._t > 25000) { gps._t = Date.now(); await reverseStreet(); }
     updateStampUI();
-  }, function(e) { $('lsStreet').textContent = 'Lokasi tidak aktif'; }, { enableHighAccuracy: true });
+  }, function(e) { $('gpsInfo').textContent = 'Lokasi tidak aktif'; }, { enableHighAccuracy: true });
 }
 async function reverseStreet() {
   try {
