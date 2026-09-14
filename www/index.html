@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>Kamera HD</title>
-<meta name="theme-color" content="#000000" />
+<meta name="theme-color" content="#0a0a0a" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📷</text></svg>" />
 <link rel="stylesheet" href="styles.css" />
@@ -12,60 +12,110 @@
 <body>
 <div id="permModal">
   <div class="perm-card">
-    <div class="perm-icon">📷</div>
+    <div class="perm-icon-wrap">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </div>
     <h2>Kamera HD</h2>
-    <p>Butuh izin <b>Kamera, Mikrofon & Lokasi</b> untuk foto resolusi penuh + nama jalan otomatis.</p>
-    <button id="allowBtn" class="big-btn">✅ Izinkan & Buka Kamera</button>
+    <p>Aplikasi ini butuh izin <b>Kamera, Mikrofon & Lokasi</b> untuk foto/video resolusi penuh + nama jalan otomatis ala Timestamp.</p>
+    <button id="allowBtn" class="big-btn">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Izinkan & Buka Kamera
+    </button>
     <small id="permStatus">Menyiapkan...</small>
   </div>
 </div>
 
 <div id="app" class="hidden">
-  <!-- Video fullscreen di belakang -->
   <video id="video" autoplay playsinline muted></video>
-  <div id="ratioMaskTop"></div><div id="ratioMaskBottom"></div>
-  <div id="grid" class="hidden"><div class="g-v" style="left:33.3%"></div><div class="g-v" style="left:66.6%"></div><div class="g-h" style="top:33.3%"></div><div class="g-h" style="top:66.6%"></div></div>
+
+  <!-- Grid overlay -->
+  <div id="grid" class="hidden">
+    <div class="g-v" style="left:33.3%"></div><div class="g-v" style="left:66.6%"></div>
+    <div class="g-h" style="top:33.3%"></div><div class="g-h" style="top:66.6%"></div>
+  </div>
   <div id="focusBox" class="hidden"></div>
   <div id="countdown" class="hidden">3</div>
 
-  <!-- Atas overlay -->
+  <!-- Bar atas -->
   <header id="topbar">
-    <button id="flashBtn" class="icon-btn" title="Flash">⚡</button>
-    <span id="hdBadge" title="Resolusi asli sensor">…</span>
+    <button id="flashBtn" class="icon-btn" title="Flash">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    </button>
+    <span id="hdBadge" title="Resolusi sensor">…</span>
     <span id="stabDot" title="Stabil">●</span>
     <div class="spacer"></div>
-    <span id="compass">–°</span>
-    <button id="gridBtn" class="icon-btn" title="Grid">⊞</button>
-    <button id="settingsBtn" class="icon-btn" title="Pengaturan">⚙️</button>
+    <span id="compass" title="Kompas">–°</span>
+    <button id="gridBtn" class="icon-btn" title="Grid">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    </button>
+    <button id="settingsBtn" class="icon-btn" title="Pengaturan">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
   </header>
 
   <!-- Mode strip -->
   <nav id="modes">
-    <button data-mode="photo" class="on">FOTO</button>
-    <button data-mode="burst">BURST</button>
-    <button data-mode="doc">DOKUMEN</button>
-    <button data-mode="night">MALAM</button>
-    <button data-mode="video">VIDEO</button>
+    <button data-mode="photo" class="on">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Foto
+    </button>
+    <button data-mode="burst">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="2" width="20" height="20" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="2" y1="8" x2="6" y2="8"/><line x1="2" y1="16" x2="6" y2="16"/><line x1="2" y1="12" x2="6" y2="12"/></svg>
+      Burst
+    </button>
+    <button data-mode="doc">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Dok
+    </button>
+    <button data-mode="night">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      Malam
+    </button>
+    <button data-mode="video">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      Video
+    </button>
   </nav>
 
   <!-- Timemark -->
-  <div id="liveStamp"><b id="lsStreet">Mencari lokasi...</b><span id="lsDate">...</span></div>
+  <div id="liveStamp">
+    <b id="lsStreet">Mencari lokasi...</b>
+    <span id="lsDate">...</span>
+  </div>
   <div id="toast" class="hidden"></div>
+  <div id="sharpInfo">tajam: –</div>
 
-  <!-- Bawah overlay -->
+  <!-- Bar bawah -->
   <footer id="bottombar">
-    <button id="galleryBtn" class="icon-btn big">🖼️<span id="gCount">0</span></button>
-    <button id="photoBtn" class="shutter" title="Ambil"></button>
-    <button id="videoBtn" class="icon-btn big hidden" title="Rekam">🔴</button>
-    <button id="switchBtn" class="icon-btn big" title="Ganti">🔄</button>
+    <button id="galleryBtn" class="icon-btn" title="Galeri">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <span id="gCount">0</span>
+    </button>
+    <div class="shutter-group">
+      <button id="switchCamBtn" class="icon-btn sm" title="Ganti Kamera">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      </button>
+      <button id="photoBtn" class="shutter" title="Ambil Foto"></button>
+      <button id="flashToggle" class="icon-btn sm" title="Flash">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </button>
+    </div>
+    <button id="videoBtn" class="icon-btn" title="Video">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+    </button>
   </footer>
   <div id="recTimer" class="hidden">● 00:00</div>
-  <div id="sharpInfo">tajam: –</div>
 </div>
 
+<!-- Panel pengaturan -->
 <div id="sheet" class="hidden">
   <div class="sheet-card">
-    <div class="sheet-head"><b>⚙️ Pengaturan</b><button id="closeSheet" class="icon-btn">✕</button></div>
+    <div class="sheet-head">
+      <b>⚙️ Pengaturan</b>
+      <button id="closeSheet" class="icon-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
     <div class="grid2">
     <label>Kualitas foto
       <select id="resolution">
@@ -79,13 +129,26 @@
       <select id="ratio"><option value="full" selected>Full layar</option><option value="16:9">16:9</option><option value="4:3">4:3</option><option value="1:1">1:1</option></select>
     </label>
     </div>
-    <label>Zoom <span id="zoomVal">1.0x</span><input type="range" id="zoom" min="1" max="5" step="0.1" value="1" /></label>
+    <label>Zoom <span id="zoomVal">1.0x</span>
+      <input type="range" id="zoom" min="1" max="5" step="0.1" value="1" />
+    </label>
     <div class="toggles">
-      <button id="tStab" class="toggle on">📳 Stabil ON</button>
-      <button id="tBlur" class="toggle on">✨ Anti-Blur ON</button>
-      <button id="tStamp" class="toggle on">🕒 Timestamp ON</button>
-      <button id="tMirror" class="toggle">🪞 Mirror OFF</button>
-      <button id="tSharp" class="toggle on">🗡️ Penajaman ON</button>
+      <button id="tStab" class="toggle on">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg>
+        Stabil
+      </button>
+      <button id="tBlur" class="toggle on">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.48"/></svg>
+        AntiBlur
+      </button>
+      <button id="tStamp" class="toggle on">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Timestamp
+      </button>
+      <button id="tMirror" class="toggle">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        Mirror
+      </button>
     </div>
     <label>Filter
       <select id="filter"><option value="none" selected>Normal</option><option value="vivid">Vivid</option><option value="bw">Hitam Putih</option><option value="night">🌙 Malam</option></select>
@@ -93,12 +156,23 @@
     <label>Timer <select id="timer"><option value="0" selected>Off</option><option value="3">3 dtk</option><option value="5">5 dtk</option><option value="10">10 dtk</option></select></label>
     <input id="customText" placeholder="Catatan (mis: Survey - Andi)" />
     <small id="gpsInfo">📍 GPS: menunggu izin...</small>
-    <small class="hint">Tips tajam: ketuk objek untuk kunci fokus • tombol volume = shutter • ketuk 2x = zoom 2x • tahan HP sampai titik hijau.</small>
+    <small class="hint">Ketuk objek untuk fokus • ketuk 2x = zoom 2x • volume/spasi = shutter. Tunggu titik hijau sebelum jepret.</small>
   </div>
 </div>
 
+<!-- Galeri -->
 <div id="galleryModal" class="hidden">
-  <div class="sheet-head"><b>🖼️ Hasil</b><div><button id="shareLast" class="icon-btn" title="Bagikan">📤</button> <button id="closeGallery" class="icon-btn">✕</button></div></div>
+  <div class="sheet-head">
+    <b>🖼️ Hasil</b>
+    <div class="flex-row">
+      <button id="shareLast" class="icon-btn sm" title="Bagikan">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </button>
+      <button id="closeGallery" class="icon-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
   <div id="galleryGrid"></div>
 </div>
 
