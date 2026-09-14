@@ -1,10 +1,10 @@
-// Kamera HD v4 - polished UI + direct gallery save
+// Kamera HD v5 - iPhone-like clarity, stamp logic fix, clean UI
 const $ = id => document.getElementById(id);
 const video = $('video');
 const capCanvas = $('captureCanvas');
 const workCanvas = $('workCanvas');
-const S = { stab: true, blur: true, stamp: true, mirror: false, facing: 'environment', torch: false, res: '1920x1080', ratio: 'full', mode: 'photo', filter: 'none', flashOn: false };
-let stream = null, track = null, caps = {}, settings = {};
+const S = { stab: true, stamp: true, mirror: false, facing: 'environment', torch: false, res: '1920x1080', ratio: 'full', mode: 'photo', filter: 'none' };
+let stream = null, track = null, caps = {};
 let gallery = [];
 let gps = { lat: null, lon: null, acc: null, street: '' };
 let heading = null;
@@ -14,10 +14,12 @@ let zoomV = 1;
 let imgCap = null, photoMax = null;
 
 function toast(m, ms) { ms = ms || 2200; const t = $('toast'); t.textContent = m; t.classList.remove('hidden'); clearTimeout(t._x); t._x = setTimeout(function() { t.classList.add('hidden'); }, ms); }
+function fmtTimemark(d) { d = d || new Date(); return d.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replaceAll(':', '.'); }
+function compassStr() { return heading == null ? '' : ' ' + Math.round(heading) + '\u00B0'; }
+function stampVisible() { return S.stamp; }
 
 // ===== IZIN OTOMATIS =====
 async function requestAll() {
-  $('permStatus').textContent = 'Meminta izin kamera & mikrofon...';
   try {
     if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) { try { await DeviceMotionEvent.requestPermission(); } catch(e) {} }
     if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) { try { await DeviceOrientationEvent.requestPermission(); } catch(e) {} }
@@ -33,22 +35,21 @@ async function requestAll() {
     photoMax = null; imgCap = null;
     try { if ('ImageCapture' in window) { imgCap = new ImageCapture(track); var pc = await imgCap.getPhotoCapabilities(); if (pc.imageWidth && pc.imageWidth.max) photoMax = { w: pc.imageWidth.max, h: pc.imageHeight.max }; } } catch(e) {}
     var rw = settings.width || video.videoWidth, rh = settings.height || video.videoHeight;
-    $('hdBadge').textContent = '' + rw + '\u00D7' + rh + (photoMax ? ' ' : '');
+    $('hdBadge').textContent = '' + rw + '\u00D7' + rh;
     $('hdBadge').title = 'Video ' + rw + '\u00D7' + rh + (photoMax ? '. Foto maks ' + photoMax.w + '\u00D7' + photoMax.h : '') + '.';
     if (caps.zoom) { $('zoom').min = caps.zoom.min; $('zoom').max = Math.min(caps.zoom.max, 10); $('zoom').step = caps.zoom.step || 0.1; }
     applyRatioMask();
   } catch(e) { $('permStatus').textContent = 'Izin kamera ditolak: ' + e.message; return false; }
-  $('permStatus').textContent = 'Meminta izin lokasi...';
   requestGPS();
   return true;
 }
 function requestGPS() {
-  if (!('geolocation' in navigator)) return;
+  if (!('geolocation' in navigator)) { $('lsStreet').textContent = 'GPS tidak didukung'; return; }
   navigator.geolocation.watchPosition(async function(p) {
     gps.lat = p.coords.latitude; gps.lon = p.coords.longitude; gps.acc = p.coords.accuracy;
-    $('gpsInfo').textContent = '\uD83D\uDCCD ' + gps.lat.toFixed(5) + ', ' + gps.lon.toFixed(5) + ' (\u00B1' + Math.round(gps.acc) + 'm)';
     if (!gps._t || Date.now() - gps._t > 25000) { gps._t = Date.now(); await reverseStreet(); }
-    updateStamp();
+    $('sharpInfo').style.display = 'none';
+updateStampUI();
   }, function(e) { $('lsStreet').textContent = 'Lokasi tidak aktif'; }, { enableHighAccuracy: true });
 }
 async function reverseStreet() {
@@ -69,9 +70,13 @@ async function reverseStreet() {
     gps.street = parts.length ? parts.join(', ') : (j.display_name || '').split(',').slice(0, 3).join(',');
   } catch(e) { gps.street = gps.lat.toFixed(5) + ', ' + gps.lon.toFixed(5); }
 }
-function fmtTimemark(d) { d = d || new Date(); return d.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replaceAll(':', '.'); }
-function compassStr() { return heading == null ? '' : ' ' + Math.round(heading) + '\u00B0'; }
-function updateStamp() {
+function updateStampUI() {
+  // HENTIKAN update jika stamp OFF - langsung sembunyikan
+  if (!S.stamp) {
+    $('liveStamp').classList.add('stamp-off');
+    return;
+  }
+  $('liveStamp').classList.remove('stamp-off');
   $('lsStreet').textContent = gps.street || 'Mencari nama jalan...';
   var d = fmtTimemark();
   if (heading != null) d += ' ' + Math.round(heading) + '\u00B0';
@@ -80,8 +85,8 @@ function updateStamp() {
   if (c) d += '\n' + c;
   $('lsDate').innerText = d;
 }
-setInterval(updateStamp, 1000);
-$('customText').addEventListener('input', updateStamp);
+setInterval(updateStampUI, 1000);
+$('customText').addEventListener('input', updateStampUI);
 $('allowBtn').onclick = async function() { if (await requestAll()) { $('permModal').classList.add('hidden'); $('app').classList.remove('hidden'); toast('Kamera siap'); } };
 window.addEventListener('load', async function() { try { if (await requestAll()) { $('permModal').classList.add('hidden'); $('app').classList.remove('hidden'); } } catch(e) {} });
 
@@ -92,10 +97,10 @@ $('gridBtn').onclick = function() { $('grid').classList.toggle('hidden'); };
 $('switchCamBtn').onclick = async function() { S.facing = S.facing === 'environment' ? 'user' : 'environment'; await requestAll(); toast(S.facing === 'user' ? 'Depan' : 'Belakang'); };
 $('flashToggle').onclick = async function() {
   try {
-    if (!track || !caps.torch) return toast('Flash tidak didukung di perangkat ini');
-    S.flashOn = !S.flashOn;
-    await track.applyConstraints({ advanced: [{ torch: S.flashOn }] });
-    $('flashToggle').style.background = S.flashOn ? 'rgba(245,158,11,.3)' : '';
+    if (!track || !caps.torch) return toast('Flash tidak didukung');
+    S.torchOn = !S.torchOn;
+    await track.applyConstraints({ advanced: [{ torch: S.torchOn }] });
+    $('flashToggle').style.background = S.torchOn ? 'rgba(245,158,11,.3)' : '';
   } catch(e) { toast(e.message); }
 };
 $('resolution').onchange = function(e) { S.res = e.target.value; requestAll(); };
@@ -129,8 +134,9 @@ $('zoom').oninput = async function(e) {
 };
 function bindToggle(id, key, on, off) { $(id).onclick = function() { S[key] = !S[key]; $(id).textContent = S[key] ? on : off; $(id).classList.toggle('on', S[key]); }; }
 bindToggle('tStab', 'stab', 'Stabil', 'Stabil');
-bindToggle('tBlur', 'blur', 'AntiBlur', 'AntiBlur');
 bindToggle('tStamp', 'stamp', 'Timestamp', 'Timestamp');
+// Saat stamp OFF, sembunyikan liveStamp
+if (!S.stamp) $('liveStamp').classList.add('stamp-off');
 bindToggle('tMirror', 'mirror', 'Mirror', 'Mirror');
 document.querySelectorAll('#modes button').forEach(function(b) { b.onclick = function() {
   document.querySelectorAll('#modes button').forEach(function(x) { x.classList.remove('on'); });
@@ -171,7 +177,7 @@ window.addEventListener('deviceorientationabsolute', function(e) { if (e.alpha !
 window.addEventListener('deviceorientation', function(e) { if (e.alpha != null && heading == null && e.webkitCompassHeading != null) { heading = e.webkitCompassHeading; $('compass').textContent = Math.round(heading) + '\u00B0'; } }, true);
 setInterval(function() { if (!video.videoWidth) return; window._stab = stability; $('stabDot').style.color = !S.stab ? '#666' : stability > 70 ? '#22c55e' : stability > 40 ? '#f59e0b' : '#ef4444'; }, 500);
 
-// ===== KETAJAMAN =====
+// ===== KETAJAMAN (untuk info saja, tidak dipakai untuk filter) =====
 function sharpScore(canvas) {
   var w = 160, h = Math.max(1, Math.round(160 * canvas.height / canvas.width));
   var ctx = workCanvas.getContext('2d', { willReadFrequently: true });
@@ -232,21 +238,7 @@ function cropRatio(src) {
   out.getContext('2d').drawImage(src, (sw - cw) / 2, (sh - ch) / 2, cw, ch, 0, 0, cw, ch);
   return out;
 }
-function sharpenSmall(canvas) {
-  if (!S.stab || canvas.width * canvas.height > 3000000) return;
-  var ctx = canvas.getContext('2d', { willReadFrequently: true });
-  var d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  var src = new Uint8ClampedArray(d.data);
-  var W = canvas.width, k = 0.35;
-  for (var y = 1; y < canvas.height - 1; y++) for (var x = 1; x < W - 1; x++) {
-    for (var c = 0; c < 3; c++) {
-      var i = (y * W + x) * 4 + c;
-      var lap = 4 * src[i] - src[i - 4] - src[i + 4] - src[i - W * 4] - src[i + W * 4];
-      d.data[i] = Math.max(0, Math.min(255, src[i] + lap * k));
-    }
-  }
-  ctx.putImageData(d, 0, 0);
-}
+// HAPUS sharpSmall - tidak perlu untuk kualitas iPhone-like
 function burnTimemark(ctx, W, H) {
   if (!S.stamp) return;
   var street = gps.street || 'Mencari lokasi...';
@@ -284,7 +276,7 @@ async function saveToGallery(blob, filename) {
       await Filesystem.writeFile({ path: 'KameraHD/' + filename, data: base64, directory: Directory.Pictures });
       toast('\u2705 Disimpan ke Galeri');
       return;
-    } catch(e) { /* fallback download */ }
+    } catch(e) {}
   }
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -296,7 +288,7 @@ async function saveToGallery(blob, filename) {
   toast('\uD83D\uDCDDiunduh');
 }
 
-// ===== AMBIL FOTO =====
+// ===== AMBIL FOTO - iPhone-like: full sensor, tanpa crop, tanpa sharpen =====
 async function takePhotoHD() {
   var t = Number($('timer').value);
   if (t > 0) for (var i = t; i > 0; i--) { $('countdown').textContent = i; $('countdown').classList.remove('hidden'); await new Promise(function(r) { setTimeout(r, 1000); }); }
@@ -306,12 +298,14 @@ async function takePhotoHD() {
   var result = await captureFullRes();
   var canvas = result.canvas;
   var s = sharpScore(canvas);
-  var c = cropRatio(canvas);
-  var tmp = document.createElement('canvas'); tmp.width = c.width; tmp.height = c.height;
-  tmp.getContext('2d').drawImage(c, 0, 0);
-  sharpenSmall(tmp);
+  // TIDAK ada cropRatio untuk foto - langsung full resolution
+  var tmp = document.createElement('canvas'); tmp.width = canvas.width; tmp.height = canvas.height;
+  tmp.getContext('2d').drawImage(canvas, 0, 0);
+  // TIDAK ada sharpenSmall - biar alami seperti iPhone
   burnTimemark(tmp.getContext('2d'), tmp.width, tmp.height);
+  $('sharpInfo').style.display = '';
   $('sharpInfo').textContent = 'tajam: ' + Math.round(s) + ' • ' + tmp.width + '\u00D7' + tmp.height;
+  setTimeout(function() { $('sharpInfo').style.display = 'none'; }, 3000);
   var blob = await new Promise(function(r) { tmp.toBlob(r, 'image/jpeg', 0.97); });
   var fname = 'kamera-' + Date.now() + '.jpg';
   addGal({ type: 'photo', url: tmp.toDataURL('image/jpeg', 0.97), time: new Date(), w: tmp.width, h: tmp.height, score: Math.round(s) });
@@ -321,7 +315,7 @@ async function takePhotoHD() {
 function mainShutter() { if (S.mode === 'video') toggleVideo(); else takePhotoHD(); }
 $('photoBtn').onclick = mainShutter;
 
-// ===== BURST =====
+// ===== BURST - tanpa sharpen =====
 async function takeBurst() {
   toast('Burst 5x...');
   var frames = [];
@@ -340,7 +334,7 @@ async function takeBurst() {
   toast('Burst: 3 terbaik');
 }
 
-// ===== VIDEO =====
+// ===== VIDEO - tanpa crop (1.0), tanpa sharpen =====
 $('videoBtn').onclick = toggleVideo;
 function recStr() { var s = Math.floor((Date.now() - recStart) / 1000); return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
 function toggleVideo() {
@@ -356,8 +350,8 @@ function toggleVideo() {
     rx.save();
     var f = filterCss();
     rx.filter = f === 'none' ? 'none' : f;
-    if (S.stab) { var c = 0.96; rx.drawImage(video, vw * (1 - c) / 2, vh * (1 - c) / 2, vw * c, vh * c, 0, 0, vw, vh); }
-    else rx.drawImage(video, 0, 0, vw, vh);
+    // TANPA CROP - full resolution untuk kejernihan maksimum
+    rx.drawImage(video, 0, 0, vw, vh);
     rx.restore(); rx.filter = 'none';
     burnTimemark(rx, vw, vh);
     requestAnimationFrame(loop);
@@ -365,7 +359,7 @@ function toggleVideo() {
   var rs = rc.captureStream(30);
   if (stream) stream.getAudioTracks().forEach(function(t) { rs.addTrack(t); });
   var mime = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm';
-  var mr = new MediaRecorder(rs, { mimeType: mime, videoBitsPerSecond: 10000000 });
+  var mr = new MediaRecorder(rs, { mimeType: mime, videoBitsPerSecond: 12000000 });
   var ch = [];
   mr.ondataavailable = function(e) { if (e.data.size) ch.push(e.data); };
   mr.onstop = async function() {
@@ -380,6 +374,7 @@ function toggleVideo() {
   $('recTimer').classList.remove('hidden');
   recTick = setInterval(function() { $('recTimer').textContent = '\u25CF ' + recStr(); }, 500);
   loop(); toast('Merekam...');
+  $('sharpInfo').style.display = 'none';
 }
 
 // ===== GALERI =====
@@ -410,4 +405,5 @@ $('shareLast').onclick = async function() {
   } catch(e) { toast('Share gagal'); }
 };
 if ('serviceWorker' in navigator) window.addEventListener('load', function() { navigator.serviceWorker.register('sw.js').catch(function() {}); });
-updateStamp();
+$('sharpInfo').style.display = 'none';
+updateStampUI();
